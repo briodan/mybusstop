@@ -1,0 +1,60 @@
+name: Auto Version & HACS Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'custom_components/**'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # required to get all tags
+
+      - name: 🔢 Determine Next Version
+        id: version
+        run: |
+          git fetch --tags
+          latest=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || echo "v0.0.0")
+          echo "Latest version: $latest"
+          IFS='.' read -r -a parts <<< "${latest#v}"
+          new_patch=$((parts[2]+1))
+          new_version="v${parts[0]}.${parts[1]}.$new_patch"
+          echo "New version: $new_version"
+          echo "version=$new_version" >> "$GITHUB_OUTPUT"
+
+      - name: 📝 Update manifest.json Version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION_NO_V=${VERSION#v}
+          jq --arg v "$VERSION_NO_V" '.version = $v' custom_components/mybusstop/manifest.json > tmp.json
+          mv tmp.json custom_components/mybusstop/manifest.json
+
+      - name: 🔖 Commit and Tag New Version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git commit -am "🔖 Release $VERSION"
+          git tag "$VERSION"
+          git push origin main --follow-tags
+
+      - name: 📦 Build HACS-Compatible Release ZIP (flat)
+        run: |
+          cd '${{ github.workspace }}/custom_components/mybusstop'
+          zip thermostat_scheduler.zip -r ./
+
+      - name: 🚀 Publish GitHub Release with ZIP
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          files: "${{ github.workspace }}/custom_components/mybusstop/mybusstop.zip"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
