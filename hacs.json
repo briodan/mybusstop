@@ -1,0 +1,8 @@
+{
+    "name": "my_bus_stop",
+    "render_readme": true,
+    "homeassistant": "2023.0.0",
+    "zip_release": true,
+    "filename": "mybusstop.zip"
+  }
+  
