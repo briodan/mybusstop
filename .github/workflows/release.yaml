@@ -48,7 +48,7 @@ jobs:
       - name: 📦 Build HACS-Compatible Release ZIP (flat)
         run: |
           cd '${{ github.workspace }}/custom_components/mybusstop'
-          zip thermostat_scheduler.zip -r ./
+          zip mybusstop.zip -r ./
 
       - name: 🚀 Publish GitHub Release with ZIP
         uses: softprops/action-gh-release@v2
