@@ -13,8 +13,7 @@ from .coordinator import MyBusStopCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["sensor"]
-
+PLATFORMS = ["sensor", "device_tracker"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up MyBusStop from a config entry."""
