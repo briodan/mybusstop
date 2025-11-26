@@ -63,7 +63,7 @@ class MyBusStopConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required("username"): str,
                 vol.Required("password"): str,
-                vol.Required(CONF_ROUTE_ID, description={"suggested_value": 103427}): int,
+                vol.Required(CONF_ROUTE_ID): int,
             }
         )
 

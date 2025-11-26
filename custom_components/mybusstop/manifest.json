@@ -2,6 +2,7 @@
   "domain": "mybusstop",
   "name": "MyBusStop",
   "version": "0.0.3",
+  "config_flow": true,
   "documentation": "https://github.com/briodan/mybusstop",
   "issue_tracker": "https://github.com/briodan/mybusstop/issues",
   "dependencies": [],

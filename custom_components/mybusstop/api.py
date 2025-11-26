@@ -131,6 +131,16 @@ class MyBusStopApi:
             raise MyBusStopApiError("Unexpected getCurrentNEW response structure")
 
         d = data["d"]
+        def _to_float(val: Any) -> Optional[float]:
+            try:
+                if val is None:
+                    return None
+                s = str(val).strip()
+                if s == "" or s.lower() == "null":
+                    return None
+                return float(s)
+            except (ValueError, TypeError):
+                return None
         # Based on the page JS OnSuccessCurrent:
         # response[0] = sUnit (bus number)
         # response[1] = checkin_time
@@ -142,8 +152,8 @@ class MyBusStopApi:
             "bus_number": d[0],
             "checkin_time": d[1],
             "timezone_offset": d[2],
-            "latitude": float(d[3]),
-            "longitude": float(d[4]),
+            "latitude": _to_float(d[3]),
+            "longitude": _to_float(d[4]),
             "last_seen": d[5],
         }
         return result
