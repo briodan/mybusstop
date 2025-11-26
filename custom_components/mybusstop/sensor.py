@@ -18,18 +18,41 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     data = hass.data[DOMAIN][entry.entry_id]
-    coordinator: MyBusStopCoordinator = data["coordinator"]
+    routes = data.get("routes", [])
+    coordinators = data.get("coordinators", {})
 
-    name = entry.title or "MyBusStop Bus"
-    route_id = entry.data[CONF_ROUTE_ID]
+    entities = []
+    if routes:
+        for r in routes:
+            rid = int(r["id"])
+            coord = coordinators.get(rid)
+            name = r.get("name") or f"MyBusStop Route {rid}"
+            unique_id = f"{entry.entry_id}_bus_{rid}"
+            if coord:
+                entities.append(
+                    MyBusStopBusSensor(
+                        coordinator=coord,
+                        name=name,
+                        route_id=rid,
+                        unique_id=unique_id,
+                    )
+                )
+    else:
+        # Fallback to single configured route
+        coordinator: MyBusStopCoordinator = data.get("coordinator")
+        name = entry.title or "MyBusStop Bus"
+        route_id = entry.data[CONF_ROUTE_ID]
+        entities.append(
+            MyBusStopBusSensor(
+                coordinator=coordinator,
+                name=name,
+                route_id=route_id,
+                unique_id=f"{entry.entry_id}_bus",
+            )
+        )
 
-    entity = MyBusStopBusSensor(
-        coordinator=coordinator,
-        name=name,
-        route_id=route_id,
-        unique_id=f"{entry.entry_id}_bus",
-    )
-    async_add_entities([entity])
+    if entities:
+        async_add_entities(entities)
 
 
 class MyBusStopBusSensor(SensorEntity):

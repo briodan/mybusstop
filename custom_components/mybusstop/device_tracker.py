@@ -14,14 +14,35 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     data = hass.data[DOMAIN][entry.entry_id]
-    coordinator: MyBusStopCoordinator = data["coordinator"]
+    routes = data.get("routes", [])
+    coordinators = data.get("coordinators", {})
 
-    entity = MyBusStopBusTracker(
-        coordinator=coordinator,
-        unique_id=f"{entry.entry_id}_bus_tracker",
-        name=f"MyBusStop Bus Tracker {entry.data['route_id']}",
-    )
-    async_add_entities([entity])
+    entities = []
+    if routes:
+        for r in routes:
+            rid = int(r["id"])
+            coord = coordinators.get(rid)
+            if coord:
+                entities.append(
+                    MyBusStopBusTracker(
+                        coordinator=coord,
+                        unique_id=f"{entry.entry_id}_bus_tracker_{rid}",
+                        name=f"MyBusStop Bus Tracker {r.get('name', rid)}",
+                    )
+                )
+    else:
+        # fallback
+        coordinator: MyBusStopCoordinator = data.get("coordinator")
+        entities.append(
+            MyBusStopBusTracker(
+                coordinator=coordinator,
+                unique_id=f"{entry.entry_id}_bus_tracker",
+                name=f"MyBusStop Bus Tracker {entry.data['route_id']}",
+            )
+        )
+
+    if entities:
+        async_add_entities(entities)
 
 
 class MyBusStopBusTracker(TrackerEntity):

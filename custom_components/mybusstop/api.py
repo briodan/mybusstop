@@ -94,6 +94,42 @@ class MyBusStopApi:
 
         _LOGGER.info("MyBusStop login successful")
         self._logged_in = True
+        # Save last logged-in page HTML for callers who want to parse routes
+        self._last_login_page = text
+
+    async def async_get_routes(self) -> list[dict]:
+        """Return list of available routes from the logged-in page.
+
+        Each route is a dict:{"id": <route_id>, "name": <route_name>}.
+        If no routes are found, returns an empty list.
+        """
+        if not getattr(self, "_logged_in", False):
+            await self.async_login()
+
+        # Try to use saved login page HTML if available; otherwise fetch the page
+        html = getattr(self, "_last_login_page", None)
+        if html is None:
+            # Fetch the index page which contains the route dropdown
+            index_url = LOGIN_URL.replace("login.aspx?ReturnUrl=%2fLogin%2fIndex.aspx", "Login/Index.aspx")
+            try:
+                resp = await self._session.get(index_url)
+                resp.raise_for_status()
+                html = await resp.text()
+            except ClientError as err:
+                _LOGGER.debug("Failed to fetch routes page: %s", err)
+                return []
+
+        # Parse <option value="12345">Route Name</option>
+        routes = []
+        for m in re.finditer(r'<option[^>]*value="(\d+)"[^>]*>([^<]+)</option>', html, re.IGNORECASE):
+            rid = m.group(1)
+            name = m.group(2).strip()
+            try:
+                routes.append({"id": int(rid), "name": name})
+            except ValueError:
+                continue
+
+        return routes
 
     async def async_get_current(self) -> Dict[str, Any]:
         """Call getCurrentNEW and return parsed data."""
