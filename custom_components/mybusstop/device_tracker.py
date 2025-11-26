@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from homeassistant.components.device_tracker import (
-    TrackerEntity,
-    SOURCE_TYPE_GPS,
-)
+from homeassistant.components.device_tracker import TrackerEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -30,7 +27,9 @@ async def async_setup_entry(
 class MyBusStopBusTracker(TrackerEntity):
     """Device tracker for the bus from MyBusStop."""
 
-    _attr_source_type = SOURCE_TYPE_GPS
+    # Some Home Assistant versions expose SOURCE_TYPE_GPS as a constant;
+    # others do not. Use the literal string to remain compatible.
+    _attr_source_type = "gps"
 
     def __init__(self, coordinator: MyBusStopCoordinator, unique_id: str, name: str) -> None:
         self.coordinator = coordinator
