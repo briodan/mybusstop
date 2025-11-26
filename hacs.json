@@ -1,5 +1,5 @@
 {
-    "name": "my_bus_stop",
+    "name": "My Bus Stop",
     "render_readme": true,
     "homeassistant": "2023.0.0",
     "zip_release": true,
