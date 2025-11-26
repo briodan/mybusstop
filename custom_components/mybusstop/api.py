@@ -10,7 +10,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class MyBusStopAuthError(Exception):
-    """Authentication / login error."""
+    """Authentication / Login error."""
 
 
 class MyBusStopApiError(Exception):
