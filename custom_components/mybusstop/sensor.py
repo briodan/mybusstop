@@ -26,28 +26,29 @@ async def async_setup_entry(
         for r in routes:
             rid = int(r["id"])
             coord = coordinators.get(rid)
-            name = r.get("name") or f"MyBusStop Route {rid}"
+            route_name = r.get("name") or f"Route {rid}"
             unique_id = f"{entry.entry_id}_bus_{rid}"
             if coord:
                 entities.append(
                     MyBusStopBusSensor(
                         coordinator=coord,
-                        name=name,
+                        route_name=route_name,
                         route_id=rid,
                         unique_id=unique_id,
+                        entry_id=entry.entry_id,
                     )
                 )
     else:
         # Fallback to single configured route
         coordinator: MyBusStopCoordinator = data.get("coordinator")
-        name = entry.title or "MyBusStop Bus"
         route_id = entry.data[CONF_ROUTE_ID]
         entities.append(
             MyBusStopBusSensor(
                 coordinator=coordinator,
-                name=name,
+                route_name="Bus",
                 route_id=route_id,
                 unique_id=f"{entry.entry_id}_bus",
+                entry_id=entry.entry_id,
             )
         )
 
@@ -57,20 +58,22 @@ async def async_setup_entry(
 
 class MyBusStopBusSensor(SensorEntity):
     """Primary sensor representing the bus / route status."""
-
     _attr_icon = "mdi:bus"
 
     def __init__(
         self,
         coordinator: MyBusStopCoordinator,
-        name: str,
+        route_name: str,
         route_id: int,
         unique_id: str,
+        entry_id: str,
     ) -> None:
         self._coordinator = coordinator
-        self._attr_name = name
+        self._route_name = route_name
         self._route_id = route_id
         self._attr_unique_id = unique_id
+        self._entry_id = entry_id
+        self._attr_name = f"MyBusStop {route_name}"
 
     @property
     def available(self) -> bool:
@@ -98,8 +101,8 @@ class MyBusStopBusSensor(SensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         return DeviceInfo(
-            identifiers={(DOMAIN, str(self._route_id))},
-            name=f"MyBusStop Route {self._route_id}",
+            identifiers={(DOMAIN, "mybusstop_device")},
+            name="MyBusStop",
             manufacturer="MyBusStop",
         )
 

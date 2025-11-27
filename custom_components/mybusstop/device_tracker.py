@@ -22,22 +22,28 @@ async def async_setup_entry(
         for r in routes:
             rid = int(r["id"])
             coord = coordinators.get(rid)
+            route_name = r.get("name") or f"Route {rid}"
             if coord:
                 entities.append(
                     MyBusStopBusTracker(
                         coordinator=coord,
                         unique_id=f"{entry.entry_id}_bus_tracker_{rid}",
-                        name=f"MyBusStop Bus Tracker {r.get('name', rid)}",
+                        route_name=route_name,
+                        route_id=rid,
+                        entry_id=entry.entry_id,
                     )
                 )
     else:
         # fallback
         coordinator: MyBusStopCoordinator = data.get("coordinator")
+        route_id = entry.data['route_id']
         entities.append(
             MyBusStopBusTracker(
                 coordinator=coordinator,
                 unique_id=f"{entry.entry_id}_bus_tracker",
-                name=f"MyBusStop Bus Tracker {entry.data['route_id']}",
+                route_name="Bus",
+                route_id=route_id,
+                entry_id=entry.entry_id,
             )
         )
 
@@ -47,15 +53,24 @@ async def async_setup_entry(
 
 class MyBusStopBusTracker(TrackerEntity):
     """Device tracker for the bus from MyBusStop."""
-
     # Some Home Assistant versions expose SOURCE_TYPE_GPS as a constant;
     # others do not. Use the literal string to remain compatible.
     _attr_source_type = "gps"
 
-    def __init__(self, coordinator: MyBusStopCoordinator, unique_id: str, name: str) -> None:
+    def __init__(
+        self,
+        coordinator: MyBusStopCoordinator,
+        unique_id: str,
+        route_name: str,
+        route_id: int,
+        entry_id: str,
+    ) -> None:
         self.coordinator = coordinator
         self._attr_unique_id = unique_id
-        self._attr_name = name
+        self._route_name = route_name
+        self._route_id = route_id
+        self._entry_id = entry_id
+        self._attr_name = f"MyBusStop {route_name}"
 
     @property
     def available(self) -> bool:
@@ -79,8 +94,17 @@ class MyBusStopBusTracker(TrackerEntity):
             "checkin_time": data.get("checkin_time"),
             "last_seen": data.get("last_seen"),
             "timezone_offset": data.get("timezone_offset"),
-            "route_id": self.coordinator.api._route_id,
+            "route_id": self._route_id,
         }
+
+    @property
+    def device_info(self):
+        from homeassistant.helpers.entity import DeviceInfo
+        return DeviceInfo(
+            identifiers={(DOMAIN, "mybusstop_device")},
+            name="MyBusStop",
+            manufacturer="MyBusStop",
+        )
 
     async def async_update(self) -> None:
         await self.coordinator.async_request_refresh()
