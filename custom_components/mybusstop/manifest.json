@@ -1,6 +1,6 @@
 {
   "domain": "mybusstop",
-  "name": "MyBusStop",
+  "name": "My Bus Stop",
   "version": "0.0.7",
   "config_flow": true,
   "documentation": "https://github.com/briodan/mybusstop",
