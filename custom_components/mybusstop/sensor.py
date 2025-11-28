@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
-import logging
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -11,8 +10,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, CONF_ROUTE_ID
 from .coordinator import MyBusStopCoordinator
-
-_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -31,7 +28,6 @@ async def async_setup_entry(
             coord = coordinators.get(rid)
             route_name = r.get("name") or f"Route {rid}"
             unique_id = f"{entry.entry_id}_bus_{rid}"
-
             if coord:
                 entities.append(
                     MyBusStopBusSensor(
@@ -46,13 +42,12 @@ async def async_setup_entry(
         # Fallback to single configured route
         coordinator: MyBusStopCoordinator = data.get("coordinator")
         route_id = entry.data[CONF_ROUTE_ID]
-        unique_id = f"{entry.entry_id}_bus"
         entities.append(
             MyBusStopBusSensor(
                 coordinator=coordinator,
                 route_name="Bus",
                 route_id=route_id,
-                unique_id=unique_id,
+                unique_id=f"{entry.entry_id}_bus",
                 entry_id=entry.entry_id,
             )
         )
@@ -118,9 +113,4 @@ class MyBusStopBusSensor(SensorEntity):
         self._coordinator.async_add_listener(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        try:
-            self._coordinator.async_remove_listener(self.async_write_ha_state)
-        except AttributeError:
-            # Older/newer Home Assistant versions may not expose async_remove_listener
-            # Ensure we don't raise when the entity is removed.
-            _LOGGER.debug("Coordinator has no async_remove_listener, skipping removal")
+        self._coordinator.async_remove_listener(self.async_write_ha_state)

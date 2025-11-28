@@ -17,10 +17,6 @@ class MyBusStopApiError(Exception):
     """Generic API error."""
 
 
-class MyBusStopNetworkError(Exception):
-    """Network / transport error when contacting MyBusStop."""
-
-
 class MyBusStopApi:
     """Simple client for MyBusStop WebForms API."""
 
@@ -45,7 +41,7 @@ class MyBusStopApi:
             text = await resp.text()
             return text
         except ClientError as err:
-            raise MyBusStopNetworkError(f"Error fetching login page: {err}") from err
+            raise MyBusStopAuthError(f"Error fetching login page: {err}") from err
 
     @staticmethod
     def _extract_hidden_value(name: str, html: str) -> Optional[str]:
@@ -89,7 +85,7 @@ class MyBusStopApi:
             resp.raise_for_status()
             text = await resp.text()
         except ClientError as err:
-            raise MyBusStopNetworkError(f"Login POST failed: {err}") from err
+            raise MyBusStopAuthError(f"Login POST failed: {err}") from err
 
         # Very naive success check: we expect to be redirected to Index.aspx
         if "hiddenUser" not in text and "MyBusStop" not in text:

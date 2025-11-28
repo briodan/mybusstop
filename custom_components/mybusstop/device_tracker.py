@@ -4,9 +4,6 @@ from homeassistant.components.device_tracker import TrackerEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-import logging
-
-_LOGGER = logging.getLogger(__name__)
 
 from .const import DOMAIN
 from .coordinator import MyBusStopCoordinator
@@ -26,13 +23,11 @@ async def async_setup_entry(
             rid = int(r["id"])
             coord = coordinators.get(rid)
             route_name = r.get("name") or f"Route {rid}"
-            unique_id = f"{entry.entry_id}_bus_tracker_{rid}"
-
             if coord:
                 entities.append(
                     MyBusStopBusTracker(
                         coordinator=coord,
-                        unique_id=unique_id,
+                        unique_id=f"{entry.entry_id}_bus_tracker_{rid}",
                         route_name=route_name,
                         route_id=rid,
                         entry_id=entry.entry_id,
@@ -41,12 +36,11 @@ async def async_setup_entry(
     else:
         # fallback
         coordinator: MyBusStopCoordinator = data.get("coordinator")
-        route_id = entry.data.get('route_id')
-        unique_id = f"{entry.entry_id}_bus_tracker"
+        route_id = entry.data['route_id']
         entities.append(
             MyBusStopBusTracker(
                 coordinator=coordinator,
-                unique_id=unique_id,
+                unique_id=f"{entry.entry_id}_bus_tracker",
                 route_name="Bus",
                 route_id=route_id,
                 entry_id=entry.entry_id,
@@ -119,7 +113,4 @@ class MyBusStopBusTracker(TrackerEntity):
         self.coordinator.async_add_listener(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        try:
-            self.coordinator.async_remove_listener(self.async_write_ha_state)
-        except AttributeError:
-            _LOGGER.debug("Coordinator has no async_remove_listener, skipping removal")
+        self.coordinator.async_remove_listener(self.async_write_ha_state)

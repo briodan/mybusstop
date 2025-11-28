@@ -50,11 +50,41 @@ jobs:
           cd '${{ github.workspace }}/custom_components/mybusstop'
           zip mybusstop.zip -r ./
 
+      - name: 📝 Update Release Draft
+        uses: release-drafter/release-drafter@v5
+        with:
+          config-name: .github/release-drafter.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🔍 Get draft release body
+        id: get_release_body
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find the draft release created/updated by Release Drafter for the new tag
+          OWNER_REPO="$GITHUB_REPOSITORY"
+          VERSION="${{ steps.version.outputs.version }}"
+          # Query releases and select the draft matching our tag
+          BODY=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/$OWNER_REPO/releases" \
+            | jq -r --arg tag "$VERSION" '.[] | select(.draft==true and .tag_name==$tag) | .body' )
+          if [ -z "$BODY" ] || [ "$BODY" = "null" ]; then
+            echo "No draft body found for $VERSION"
+            echo "body<<EOF" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "body<<EOF" >> $GITHUB_OUTPUT
+            echo "$BODY" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
       - name: 🚀 Publish GitHub Release with ZIP
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
+          body: ${{ steps.get_release_body.outputs.body }}
           files: "${{ github.workspace }}/custom_components/mybusstop/mybusstop.zip"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
