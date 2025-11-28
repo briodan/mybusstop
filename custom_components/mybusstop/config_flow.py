@@ -16,7 +16,7 @@ from .const import (
     CONF_AFTERNOON_DROPOFF_TIME,
     CONF_FRIDAY_DROPOFF_TIME,
 )
-from .api import MyBusStopApi, MyBusStopAuthError
+from .api import MyBusStopApi, MyBusStopAuthError, MyBusStopNetworkError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,6 +58,9 @@ class MyBusStopConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 info = await _validate_input(self.hass, user_input)
             except MyBusStopAuthError:
                 errors["base"] = "auth"
+            except MyBusStopNetworkError:
+                # Network issues (DNS/timeouts) should be shown as unknown during UI validation
+                errors["base"] = "unknown"
             except Exception:  # noqa: BLE001
                 _LOGGER.exception("Unexpected error during MyBusStop validation")
                 errors["base"] = "unknown"

@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.event import async_track_time_interval
 from datetime import timedelta
 from homeassistant.core import HomeAssistant
@@ -37,8 +38,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         await api_template.async_login()
+    except MyBusStopNetworkError as err:
+        _LOGGER.warning("Network error contacting MyBusStop during setup: %s", err)
+        # Let Home Assistant retry setup later
+        raise ConfigEntryNotReady from err
     except MyBusStopAuthError as err:
         _LOGGER.error("Failed to log in to MyBusStop: %s", err)
+        # Authentication failure: abort setup
         raise
 
     # Try to discover routes from the logged-in page.
