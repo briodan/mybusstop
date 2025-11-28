@@ -30,7 +30,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = async_get_clientsession(hass)
     username: str = entry.data["username"]
     password: str = entry.data["password"]
-    route_id: int | None = entry.data.get(CONF_ROUTE_ID)
+    route_id: int = entry.data[CONF_ROUTE_ID]
 
     # Create a temporary API to log in and discover available routes
     api_template = MyBusStopApi(session, username, password, route_id)
@@ -41,21 +41,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.error("Failed to log in to MyBusStop: %s", err)
         raise
 
-    # Try to discover routes from the logged-in page.
-    # If none are discovered and a `route_id` was configured previously,
-    # fall back to that single configured route. If no `route_id` exists
-    # (new installs), we'll skip creating entities for now and rely on the
-    # scheduled daily discovery to add routes later.
+    # Try to discover routes from the logged-in page. If discovery fails,
+    # fall back to the configured `route_id` only.
     routes = await api_template.async_get_routes()
     if not routes:
-        if route_id is not None:
-            routes = [{"id": route_id, "name": f"Route {route_id}"}]
-        else:
-            _LOGGER.warning(
-                "No routes discovered during setup for entry %s; integration will not create entities until routes are discovered",
-                entry.entry_id,
-            )
-            routes = []
+        # fallback: single route from config entry
+        routes = [{"id": route_id, "name": f"Route {route_id}"}]
 
     apis: dict[int, MyBusStopApi] = {}
     coordinators: dict[int, MyBusStopCoordinator] = {}
@@ -136,10 +127,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     handle = async_track_time_interval(hass, _discover_and_reload_if_changed, timedelta(hours=24))
     hass.data[DOMAIN][entry.entry_id]["routes_update_unsub"] = handle
 
-    # Only forward to platforms if we discovered at least one route.
-    if routes:
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
