@@ -126,4 +126,7 @@ class MyBusStopBusTracker(TrackerEntity):
         self.coordinator.async_add_listener(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        self.coordinator.async_remove_listener(self.async_write_ha_state)
+        try:
+            self.coordinator.async_remove_listener(self.async_write_ha_state)
+        except AttributeError:
+            _LOGGER.debug("Coordinator has no async_remove_listener, skipping removal")

@@ -126,4 +126,9 @@ class MyBusStopBusSensor(SensorEntity):
         self._coordinator.async_add_listener(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        self._coordinator.async_remove_listener(self.async_write_ha_state)
+        try:
+            self._coordinator.async_remove_listener(self.async_write_ha_state)
+        except AttributeError:
+            # Older/newer Home Assistant versions may not expose async_remove_listener
+            # Ensure we don't raise when the entity is removed.
+            _LOGGER.debug("Coordinator has no async_remove_listener, skipping removal")
