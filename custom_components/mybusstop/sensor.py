@@ -8,7 +8,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN, CONF_ROUTE_ID
 from .coordinator import MyBusStopCoordinator
@@ -26,18 +25,12 @@ async def async_setup_entry(
     coordinators = data.get("coordinators", {})
 
     entities = []
-    registry = er.async_get(hass)
     if routes:
         for r in routes:
             rid = int(r["id"])
             coord = coordinators.get(rid)
             route_name = r.get("name") or f"Route {rid}"
             unique_id = f"{entry.entry_id}_bus_{rid}"
-
-            # Skip if an entity with this unique_id already exists
-            if registry.async_get_entity_id("sensor", DOMAIN, unique_id):
-                _LOGGER.debug("Sensor with unique_id %s already exists, skipping", unique_id)
-                continue
 
             if coord:
                 entities.append(
@@ -54,16 +47,15 @@ async def async_setup_entry(
         coordinator: MyBusStopCoordinator = data.get("coordinator")
         route_id = entry.data[CONF_ROUTE_ID]
         unique_id = f"{entry.entry_id}_bus"
-        if not registry.async_get_entity_id("sensor", DOMAIN, unique_id):
-            entities.append(
-                MyBusStopBusSensor(
-                    coordinator=coordinator,
-                    route_name="Bus",
-                    route_id=route_id,
-                    unique_id=unique_id,
-                    entry_id=entry.entry_id,
-                )
+        entities.append(
+            MyBusStopBusSensor(
+                coordinator=coordinator,
+                route_name="Bus",
+                route_id=route_id,
+                unique_id=unique_id,
+                entry_id=entry.entry_id,
             )
+        )
 
     if entities:
         async_add_entities(entities)

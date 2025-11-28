@@ -17,7 +17,7 @@ from .const import (
     CONF_AFTERNOON_DROPOFF_TIME,
     CONF_FRIDAY_DROPOFF_TIME,
 )
-from .api import MyBusStopApi, MyBusStopAuthError
+from .api import MyBusStopApi, MyBusStopAuthError, MyBusStopNetworkError
 from .coordinator import MyBusStopCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -69,21 +69,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     for r in routes:
         rid = int(r["id"])
         api_i = MyBusStopApi(session, username, password, rid)
-        # ensure logged in for each API instance (cookies/session already set)
-        try:
-            await api_i.async_login()
-        except MyBusStopAuthError:
-            _LOGGER.warning("Login failed for route %s, skipping", rid)
-            continue
 
-        coord = MyBusStopCoordinator(
-            hass,
-            api_i,
-            morning_pickup_time=entry.data.get(CONF_MORNING_PICKUP_TIME, "08:19"),
-            afternoon_dropoff_time=entry.data.get(CONF_AFTERNOON_DROPOFF_TIME, "15:52"),
-            friday_dropoff_time=entry.data.get(CONF_FRIDAY_DROPOFF_TIME, "13:16"),
-        )
-        # perform initial refresh for each coordinator
+        # Always create a coordinator for each discovered route. Even if the
+        # initial refresh fails (network/auth), having the coordinator ensures
+        # the integration continues to provide entities for the route (they
+        # will appear as unavailable until data is fetched successfully).
+        coord = MyBusStopCoordinator(hass, api_i)
         try:
             await coord.async_config_entry_first_refresh()
         except Exception as err:  # keep going if one route fails

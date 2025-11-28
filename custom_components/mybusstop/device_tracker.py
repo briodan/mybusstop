@@ -4,7 +4,6 @@ from homeassistant.components.device_tracker import TrackerEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers import entity_registry as er
 import logging
 
 _LOGGER = logging.getLogger(__name__)
@@ -22,17 +21,12 @@ async def async_setup_entry(
     coordinators = data.get("coordinators", {})
 
     entities = []
-    registry = er.async_get(hass)
     if routes:
         for r in routes:
             rid = int(r["id"])
             coord = coordinators.get(rid)
             route_name = r.get("name") or f"Route {rid}"
             unique_id = f"{entry.entry_id}_bus_tracker_{rid}"
-
-            if registry.async_get_entity_id("device_tracker", DOMAIN, unique_id):
-                _LOGGER.debug("Device tracker with unique_id %s already exists, skipping", unique_id)
-                continue
 
             if coord:
                 entities.append(
@@ -49,16 +43,15 @@ async def async_setup_entry(
         coordinator: MyBusStopCoordinator = data.get("coordinator")
         route_id = entry.data.get('route_id')
         unique_id = f"{entry.entry_id}_bus_tracker"
-        if not registry.async_get_entity_id("device_tracker", DOMAIN, unique_id):
-            entities.append(
-                MyBusStopBusTracker(
-                    coordinator=coordinator,
-                    unique_id=unique_id,
-                    route_name="Bus",
-                    route_id=route_id,
-                    entry_id=entry.entry_id,
-                )
+        entities.append(
+            MyBusStopBusTracker(
+                coordinator=coordinator,
+                unique_id=unique_id,
+                route_name="Bus",
+                route_id=route_id,
+                entry_id=entry.entry_id,
             )
+        )
 
     if entities:
         async_add_entities(entities)
