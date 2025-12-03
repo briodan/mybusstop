@@ -136,12 +136,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     entry.async_on_unload(entry.add_update_listener(_async_update_options))
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    
     # Register service for on-demand polling
     async def handle_update_bus_location(call):
         """Handle the service call to update bus location."""
-        route_id = call.data.get("route_id")
+        route_id = call.data.get("route_id") if call else None
         apis_dict = hass.data[DOMAIN][entry.entry_id]["apis"]
         
         if route_id:
@@ -185,6 +183,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "update_bus_location",
         handle_update_bus_location,
     )
+    
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    
+    # Perform initial data fetch
+    await handle_update_bus_location(None)
     
     return True
 
