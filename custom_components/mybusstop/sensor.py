@@ -97,7 +97,7 @@ class MyBusStopBusSensor(SensorEntity):
         )
 
     async def async_added_to_hass(self) -> None:
-        \"\"\"Register event listener when entity is added.\"\"\"
+        """Register event listener when entity is added."""
         self.async_on_remove(
             self.hass.bus.async_listen(
                 f"{DOMAIN}_update",
@@ -106,7 +106,7 @@ class MyBusStopBusSensor(SensorEntity):
         )
 
     async def _handle_update_event(self, event) -> None:
-        \"\"\"Handle update event from service.\"\"\"
+        """Handle update event from service."""
         route_id = event.data.get("route_id")
         # Update if it's for this route or for all routes
         if route_id is None or route_id == self._route_id:
