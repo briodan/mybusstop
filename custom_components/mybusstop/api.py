@@ -25,7 +25,7 @@ class MyBusStopApi:
         session: ClientSession,
         username: str,
         password: str,
-        route_id: int,
+        route_id: Optional[int] = None,
     ) -> None:
         self._session = session
         self._username = username

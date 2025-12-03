@@ -12,7 +12,6 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     DOMAIN,
-    CONF_ROUTE_ID,
     CONF_MORNING_PICKUP_TIME,
     CONF_AFTERNOON_DROPOFF_TIME,
     CONF_FRIDAY_DROPOFF_TIME,
@@ -23,20 +22,17 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def _validate_input(hass: HomeAssistant, data: Dict[str, Any]) -> Dict[str, Any]:
-    """Validate the user input by logging in once."""
+    """Validate the user input by logging in."""
     session = async_get_clientsession(hass)
     api = MyBusStopApi(
         session,
         username=data["username"],
         password=data["password"],
-        route_id=int(data[CONF_ROUTE_ID]),
     )
 
     await api.async_login()
-    # If login succeeded, we can also test one getCurrentNEW
-    await api.async_get_current()
-
-    return {"title": f"MyBusStop Route {data[CONF_ROUTE_ID]}"}
+    
+    return {"title": "MyBusStop"}
 
 
 class MyBusStopConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -45,6 +41,7 @@ class MyBusStopConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
+        """Handle the initial step - username and password."""
         errors: Dict[str, str] = {}
 
         if user_input is not None:
@@ -61,7 +58,6 @@ class MyBusStopConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data={
                         "username": user_input["username"],
                         "password": user_input["password"],
-                        CONF_ROUTE_ID: int(user_input[CONF_ROUTE_ID]),
                         CONF_MORNING_PICKUP_TIME: user_input.get(CONF_MORNING_PICKUP_TIME, "08:19"),
                         CONF_AFTERNOON_DROPOFF_TIME: user_input.get(CONF_AFTERNOON_DROPOFF_TIME, "15:52"),
                         CONF_FRIDAY_DROPOFF_TIME: user_input.get(CONF_FRIDAY_DROPOFF_TIME, "13:16"),
@@ -72,7 +68,6 @@ class MyBusStopConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required("username"): str,
                 vol.Required("password"): str,
-                vol.Required(CONF_ROUTE_ID): int,
                 vol.Optional(CONF_MORNING_PICKUP_TIME, default="08:19"): str,
                 vol.Optional(CONF_AFTERNOON_DROPOFF_TIME, default="15:52"): str,
                 vol.Optional(CONF_FRIDAY_DROPOFF_TIME, default="13:16"): str,

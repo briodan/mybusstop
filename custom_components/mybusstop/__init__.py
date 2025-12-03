@@ -11,7 +11,6 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     DOMAIN,
-    CONF_ROUTE_ID,
     CONF_MORNING_PICKUP_TIME,
     CONF_AFTERNOON_DROPOFF_TIME,
     CONF_FRIDAY_DROPOFF_TIME,
@@ -30,10 +29,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = async_get_clientsession(hass)
     username: str = entry.data["username"]
     password: str = entry.data["password"]
-    route_id: int = entry.data[CONF_ROUTE_ID]
 
     # Create a temporary API to log in and discover available routes
-    api_template = MyBusStopApi(session, username, password, route_id)
+    api_template = MyBusStopApi(session, username, password, 0)
 
     try:
         await api_template.async_login()
@@ -41,12 +39,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.error("Failed to log in to MyBusStop: %s", err)
         raise
 
-    # Try to discover routes from the logged-in page. If discovery fails,
-    # fall back to the configured `route_id` only.
+    # Discover routes from the logged-in page
     routes = await api_template.async_get_routes()
     if not routes:
-        # fallback: single route from config entry
-        routes = [{"id": route_id, "name": f"Route {route_id}"}]
+        _LOGGER.error("No routes found for this account")
+        return False
 
     apis: dict[int, MyBusStopApi] = {}
     coordinators: dict[int, MyBusStopCoordinator] = {}

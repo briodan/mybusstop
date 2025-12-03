@@ -3,11 +3,10 @@
     "step": {
       "user": {
         "title": "MyBusStop",
-        "description": "Connect Home Assistant to MyBusStop bus tracking.",
+        "description": "Connect Home Assistant to MyBusStop bus tracking. Routes will be automatically discovered.",
         "data": {
           "username": "Username / Email",
-          "password": "Password",
-          "route_id": "Route detail ID (e.g. 103427)"
+          "password": "Password"
         }
       }
     },
