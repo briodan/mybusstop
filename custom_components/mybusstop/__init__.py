@@ -57,10 +57,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         apis[rid] = api_i
 
+    # Initialize data storage
     hass.data[DOMAIN][entry.entry_id] = {
         "routes": routes,
         "apis": apis,
+        "data": {},
     }
+    
+    # Fetch initial data for all routes
+    for rid, api in apis.items():
+        try:
+            data = await api.async_get_current()
+            hass.data[DOMAIN][entry.entry_id]["data"][rid] = data
+            _LOGGER.debug("Initial data fetched for route %s", rid)
+        except Exception as err:
+            _LOGGER.warning("Failed to fetch initial data for route %s: %s", rid, err)
 
     # Schedule daily route discovery to catch changes (e.g., Friday-only route).
     async def _discover_and_reload_if_changed(now) -> None:
