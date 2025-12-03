@@ -4,16 +4,17 @@ import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_track_time_change
 from datetime import timedelta
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     DOMAIN,
+    CONF_DISCOVERY_TIME,
+    DEFAULT_DISCOVERY_TIME,
 )
 from .api import MyBusStopApi, MyBusStopAuthError
-from .coordinator import MyBusStopCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +44,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
 
     apis: dict[int, MyBusStopApi] = {}
-    coordinators: dict[int, MyBusStopCoordinator] = {}
 
     for r in routes:
         rid = int(r["id"])
@@ -55,23 +55,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.warning("Login failed for route %s, skipping", rid)
             continue
 
-        coord = MyBusStopCoordinator(
-            hass,
-            api_i,
-        )
-        # perform initial refresh for each coordinator
-        try:
-            await coord.async_config_entry_first_refresh()
-        except Exception as err:  # keep going if one route fails
-            _LOGGER.debug("Initial refresh failed for route %s: %s", rid, err)
-
         apis[rid] = api_i
-        coordinators[rid] = coord
 
     hass.data[DOMAIN][entry.entry_id] = {
         "routes": routes,
         "apis": apis,
-        "coordinators": coordinators,
     }
 
     # Schedule daily route discovery to catch changes (e.g., Friday-only route).
@@ -90,33 +78,52 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         add_ids = sorted(set(new_ids) - set(old_ids))
         if add_ids:
             _LOGGER.info("MyBusStop new routes discovered, adding: %s", add_ids)
-            # Build a mapping of id -> name from existing and newly discovered routes
-            id_to_name: dict[int, str] = {}
-            for r in old_routes:
+            
+            # Create API instances for new routes
+            apis_dict = hass.data[DOMAIN][entry.entry_id]["apis"]
+            routes_list = hass.data[DOMAIN][entry.entry_id]["routes"]
+            
+            for rid in add_ids:
+                api_i = MyBusStopApi(session, username, password, rid)
                 try:
-                    id_to_name[int(r["id"])] = r.get("name", f"Route {r['id']}")
-                except Exception:
+                    await api_i.async_login()
+                    apis_dict[rid] = api_i
+                    
+                    # Find route name from new_routes
+                    route_info = next((r for r in new_routes if int(r["id"]) == rid), None)
+                    route_name = route_info.get("name", f"Route {rid}") if route_info else f"Route {rid}"
+                    routes_list.append({"id": rid, "name": route_name})
+                    
+                    _LOGGER.info("Added new route %s: %s", rid, route_name)
+                except MyBusStopAuthError:
+                    _LOGGER.warning("Login failed for new route %s, skipping", rid)
                     continue
-            for r in new_routes:
-                try:
-                    id_to_name[int(r["id"])] = r.get("name", f"Route {r['id']}")
-                except Exception:
-                    continue
-
-            # Append any new routes to the stored list (preserve existing ones)
-            updated_routes = list(old_routes)
-            for aid in add_ids:
-                updated_routes.append({"id": aid, "name": id_to_name.get(aid, f"Route {aid}")})
-
-            hass.data[DOMAIN][entry.entry_id]["routes"] = updated_routes
+            
+            # Reload to create new entities
             try:
                 await hass.config_entries.async_reload(entry.entry_id)
             except Exception as err:
                 _LOGGER.exception("Failed to reload MyBusStop entry after adding new routes: %s", err)
 
-    # Run discovery once a day. Keep the unsubscribe handle so we can cancel on unload.
-    handle = async_track_time_interval(hass, _discover_and_reload_if_changed, timedelta(hours=24))
+    # Schedule discovery at specific time daily
+    discovery_time_str = entry.options.get(CONF_DISCOVERY_TIME, DEFAULT_DISCOVERY_TIME)
+    try:
+        hour, minute = map(int, discovery_time_str.split(":"))
+    except (ValueError, AttributeError):
+        _LOGGER.warning("Invalid discovery time '%s', using default", discovery_time_str)
+        hour, minute = 2, 0
+    
+    handle = async_track_time_change(
+        hass, _discover_and_reload_if_changed, hour=hour, minute=minute, second=0
+    )
     hass.data[DOMAIN][entry.entry_id]["routes_update_unsub"] = handle
+    
+    # Register listener for options updates
+    async def _async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Handle options update."""
+        await hass.config_entries.async_reload(entry.entry_id)
+    
+    entry.async_on_unload(entry.add_update_listener(_async_update_options))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
@@ -124,7 +131,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_update_bus_location(call):
         """Handle the service call to update bus location."""
         route_id = call.data.get("route_id")
-        coordinators_dict = hass.data[DOMAIN][entry.entry_id]["coordinators"]
+        apis_dict = hass.data[DOMAIN][entry.entry_id]["apis"]
         
         if route_id:
             # Update specific route - try to convert to int for lookup
@@ -133,16 +140,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             except (ValueError, TypeError):
                 route_key = route_id
             
-            coord = coordinators_dict.get(route_key)
-            if coord:
-                await coord.async_request_refresh()
-                _LOGGER.info("Updated bus location for route %s", route_id)
+            api = apis_dict.get(route_key)
+            if api:
+                try:
+                    data = await api.async_get_current()
+                    # Store the data for entities to access
+                    if "data" not in hass.data[DOMAIN][entry.entry_id]:
+                        hass.data[DOMAIN][entry.entry_id]["data"] = {}
+                    hass.data[DOMAIN][entry.entry_id]["data"][route_key] = data
+                    # Trigger entity updates
+                    hass.bus.async_fire(f"{DOMAIN}_update", {"route_id": route_key})
+                    _LOGGER.info("Updated bus location for route %s", route_id)
+                except Exception as err:
+                    _LOGGER.error("Failed to update route %s: %s", route_id, err)
             else:
                 _LOGGER.warning("Route %s not found", route_id)
         else:
             # Update all routes
-            for coord in coordinators_dict.values():
-                await coord.async_request_refresh()
+            if "data" not in hass.data[DOMAIN][entry.entry_id]:
+                hass.data[DOMAIN][entry.entry_id]["data"] = {}
+            for route_key, api in apis_dict.items():
+                try:
+                    data = await api.async_get_current()
+                    hass.data[DOMAIN][entry.entry_id]["data"][route_key] = data
+                except Exception as err:
+                    _LOGGER.error("Failed to update route %s: %s", route_key, err)
+            # Trigger entity updates for all routes
+            hass.bus.async_fire(f"{DOMAIN}_update", {})
             _LOGGER.info("Updated bus location for all routes")
     
     hass.services.async_register(

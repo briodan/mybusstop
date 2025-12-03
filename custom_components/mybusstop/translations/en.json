@@ -14,5 +14,16 @@
       "auth": "Login failed. Check username/password.",
       "unknown": "Unexpected error while connecting to MyBusStop."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "MyBusStop Options",
+        "description": "Configure route discovery settings.",
+        "data": {
+          "discovery_time": "Daily route discovery time (HH:MM format, 24-hour)"
+        }
+      }
+    }
   }
 }

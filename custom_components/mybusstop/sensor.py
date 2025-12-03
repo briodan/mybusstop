@@ -8,8 +8,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, CONF_ROUTE_ID
-from .coordinator import MyBusStopCoordinator
+from .const import DOMAIN
+from .api import MyBusStopApi
 
 
 async def async_setup_entry(
@@ -19,38 +19,25 @@ async def async_setup_entry(
 ) -> None:
     data = hass.data[DOMAIN][entry.entry_id]
     routes = data.get("routes", [])
-    coordinators = data.get("coordinators", {})
+    apis = data.get("apis", {})
 
     entities = []
-    if routes:
-        for r in routes:
-            rid = int(r["id"])
-            coord = coordinators.get(rid)
-            route_name = r.get("name") or f"Route {rid}"
-            unique_id = f"{entry.entry_id}_bus_{rid}"
-            if coord:
-                entities.append(
-                    MyBusStopBusSensor(
-                        coordinator=coord,
-                        route_name=route_name,
-                        route_id=rid,
-                        unique_id=unique_id,
-                        entry_id=entry.entry_id,
-                    )
+    for r in routes:
+        rid = int(r["id"])
+        api = apis.get(rid)
+        route_name = r.get("name") or f"Route {rid}"
+        unique_id = f"{entry.entry_id}_bus_{rid}"
+        if api:
+            entities.append(
+                MyBusStopBusSensor(
+                    hass=hass,
+                    api=api,
+                    route_name=route_name,
+                    route_id=rid,
+                    unique_id=unique_id,
+                    entry_id=entry.entry_id,
                 )
-    else:
-        # Fallback to single configured route
-        coordinator: MyBusStopCoordinator = data.get("coordinator")
-        route_id = entry.data[CONF_ROUTE_ID]
-        entities.append(
-            MyBusStopBusSensor(
-                coordinator=coordinator,
-                route_name="Bus",
-                route_id=route_id,
-                unique_id=f"{entry.entry_id}_bus",
-                entry_id=entry.entry_id,
             )
-        )
 
     if entities:
         async_add_entities(entities)
@@ -62,39 +49,42 @@ class MyBusStopBusSensor(SensorEntity):
 
     def __init__(
         self,
-        coordinator: MyBusStopCoordinator,
+        hass: HomeAssistant,
+        api: MyBusStopApi,
         route_name: str,
         route_id: int,
         unique_id: str,
         entry_id: str,
     ) -> None:
-        self._coordinator = coordinator
+        self.hass = hass
+        self._api = api
         self._route_name = route_name
         self._route_id = route_id
         self._attr_unique_id = unique_id
         self._entry_id = entry_id
         self._attr_name = f"MyBusStop {route_name}"
+        self._data: Optional[Dict[str, Any]] = None
 
     @property
     def available(self) -> bool:
-        return self._coordinator.last_update_success
+        return self._data is not None
 
     @property
     def native_value(self) -> Optional[str]:
-        data = self._coordinator.data
-        if not data:
+        if not self._data:
             return None
-        return data.get("bus_number")
+        return self._data.get("bus_number")
 
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
-        data = self._coordinator.data or {}
+        if not self._data:
+            return {}
         return {
-            "latitude": data.get("latitude"),
-            "longitude": data.get("longitude"),
-            "checkin_time": data.get("checkin_time"),
-            "last_seen": data.get("last_seen"),
-            "timezone_offset": data.get("timezone_offset"),
+            "latitude": self._data.get("latitude"),
+            "longitude": self._data.get("longitude"),
+            "checkin_time": self._data.get("checkin_time"),
+            "last_seen": self._data.get("last_seen"),
+            "timezone_offset": self._data.get("timezone_offset"),
             "route_id": self._route_id,
         }
 
@@ -106,11 +96,20 @@ class MyBusStopBusSensor(SensorEntity):
             manufacturer="MyBusStop",
         )
 
-    async def async_update(self) -> None:
-        await self._coordinator.async_request_refresh()
-
     async def async_added_to_hass(self) -> None:
-        self._coordinator.async_add_listener(self.async_write_ha_state)
+        \"\"\"Register event listener when entity is added.\"\"\"
+        self.async_on_remove(
+            self.hass.bus.async_listen(
+                f"{DOMAIN}_update",
+                self._handle_update_event,
+            )
+        )
 
-    async def async_will_remove_from_hass(self) -> None:
-        self._coordinator.async_remove_listener(self.async_write_ha_state)
+    async def _handle_update_event(self, event) -> None:
+        \"\"\"Handle update event from service.\"\"\"
+        route_id = event.data.get("route_id")
+        # Update if it's for this route or for all routes
+        if route_id is None or route_id == self._route_id:
+            data_store = self.hass.data[DOMAIN][self._entry_id].get("data", {})
+            self._data = data_store.get(self._route_id)
+            self.async_write_ha_state()
