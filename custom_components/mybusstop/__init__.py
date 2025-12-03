@@ -11,9 +11,6 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     DOMAIN,
-    CONF_MORNING_PICKUP_TIME,
-    CONF_AFTERNOON_DROPOFF_TIME,
-    CONF_FRIDAY_DROPOFF_TIME,
 )
 from .api import MyBusStopApi, MyBusStopAuthError
 from .coordinator import MyBusStopCoordinator
@@ -61,9 +58,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coord = MyBusStopCoordinator(
             hass,
             api_i,
-            morning_pickup_time=entry.data.get(CONF_MORNING_PICKUP_TIME, "08:19"),
-            afternoon_dropoff_time=entry.data.get(CONF_AFTERNOON_DROPOFF_TIME, "15:52"),
-            friday_dropoff_time=entry.data.get(CONF_FRIDAY_DROPOFF_TIME, "13:16"),
         )
         # perform initial refresh for each coordinator
         try:
@@ -125,6 +119,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id]["routes_update_unsub"] = handle
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    
+    # Register service for on-demand polling
+    async def handle_update_bus_location(call):
+        """Handle the service call to update bus location."""
+        route_id = call.data.get("route_id")
+        coordinators_dict = hass.data[DOMAIN][entry.entry_id]["coordinators"]
+        
+        if route_id:
+            # Update specific route - try to convert to int for lookup
+            try:
+                route_key = int(route_id)
+            except (ValueError, TypeError):
+                route_key = route_id
+            
+            coord = coordinators_dict.get(route_key)
+            if coord:
+                await coord.async_request_refresh()
+                _LOGGER.info("Updated bus location for route %s", route_id)
+            else:
+                _LOGGER.warning("Route %s not found", route_id)
+        else:
+            # Update all routes
+            for coord in coordinators_dict.values():
+                await coord.async_request_refresh()
+            _LOGGER.info("Updated bus location for all routes")
+    
+    hass.services.async_register(
+        DOMAIN,
+        "update_bus_location",
+        handle_update_bus_location,
+    )
+    
     return True
 
 
@@ -142,4 +168,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
+        # Unregister service if this is the last entry
+        if not hass.data[DOMAIN]:
+            hass.services.async_remove(DOMAIN, "update_bus_location")
     return unload_ok

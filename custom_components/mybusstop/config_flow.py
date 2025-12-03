@@ -12,9 +12,6 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     DOMAIN,
-    CONF_MORNING_PICKUP_TIME,
-    CONF_AFTERNOON_DROPOFF_TIME,
-    CONF_FRIDAY_DROPOFF_TIME,
 )
 from .api import MyBusStopApi, MyBusStopAuthError
 
@@ -58,9 +55,6 @@ class MyBusStopConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data={
                         "username": user_input["username"],
                         "password": user_input["password"],
-                        CONF_MORNING_PICKUP_TIME: user_input.get(CONF_MORNING_PICKUP_TIME, "08:19"),
-                        CONF_AFTERNOON_DROPOFF_TIME: user_input.get(CONF_AFTERNOON_DROPOFF_TIME, "15:52"),
-                        CONF_FRIDAY_DROPOFF_TIME: user_input.get(CONF_FRIDAY_DROPOFF_TIME, "13:16"),
                     },
                 )
 
@@ -68,9 +62,6 @@ class MyBusStopConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required("username"): str,
                 vol.Required("password"): str,
-                vol.Optional(CONF_MORNING_PICKUP_TIME, default="08:19"): str,
-                vol.Optional(CONF_AFTERNOON_DROPOFF_TIME, default="15:52"): str,
-                vol.Optional(CONF_FRIDAY_DROPOFF_TIME, default="13:16"): str,
             }
         )
 
