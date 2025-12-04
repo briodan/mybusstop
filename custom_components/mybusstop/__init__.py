@@ -139,44 +139,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register service for on-demand polling
     async def handle_update_bus_location(call):
         """Handle the service call to update bus location."""
-        route_id = call.data.get("route_id") if call else None
         apis_dict = hass.data[DOMAIN][entry.entry_id]["apis"]
         
-        if route_id:
-            # Update specific route - try to convert to int for lookup
+        # Update all routes
+        if "data" not in hass.data[DOMAIN][entry.entry_id]:
+            hass.data[DOMAIN][entry.entry_id]["data"] = {}
+        
+        for route_key, api in apis_dict.items():
             try:
-                route_key = int(route_id)
-            except (ValueError, TypeError):
-                route_key = route_id
-            
-            api = apis_dict.get(route_key)
-            if api:
-                try:
-                    data = await api.async_get_current()
-                    # Store the data for entities to access
-                    if "data" not in hass.data[DOMAIN][entry.entry_id]:
-                        hass.data[DOMAIN][entry.entry_id]["data"] = {}
-                    hass.data[DOMAIN][entry.entry_id]["data"][route_key] = data
-                    # Trigger entity updates
-                    hass.bus.async_fire(f"{DOMAIN}_update", {"route_id": route_key})
-                    _LOGGER.info("Updated bus location for route %s", route_id)
-                except Exception as err:
-                    _LOGGER.error("Failed to update route %s: %s", route_id, err)
-            else:
-                _LOGGER.warning("Route %s not found", route_id)
-        else:
-            # Update all routes
-            if "data" not in hass.data[DOMAIN][entry.entry_id]:
-                hass.data[DOMAIN][entry.entry_id]["data"] = {}
-            for route_key, api in apis_dict.items():
-                try:
-                    data = await api.async_get_current()
-                    hass.data[DOMAIN][entry.entry_id]["data"][route_key] = data
-                except Exception as err:
-                    _LOGGER.error("Failed to update route %s: %s", route_key, err)
-            # Trigger entity updates for all routes
-            hass.bus.async_fire(f"{DOMAIN}_update", {})
-            _LOGGER.info("Updated bus location for all routes")
+                data = await api.async_get_current()
+                hass.data[DOMAIN][entry.entry_id]["data"][route_key] = data
+            except Exception as err:
+                _LOGGER.error("Failed to update route %s: %s", route_key, err)
+        
+        # Trigger entity updates
+        hass.bus.async_fire(f"{DOMAIN}_update", {})
+        _LOGGER.info("Updated bus location for all routes")
     
     hass.services.async_register(
         DOMAIN,

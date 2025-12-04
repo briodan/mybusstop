@@ -1,11 +1,3 @@
 update_bus_location:
   name: Update Bus Location
-  description: Manually poll the MyBusStop API to update bus location and status.
-  fields:
-    route_id:
-      name: Route ID
-      description: Optional. The specific route ID to update. If not provided, all routes will be updated.
-      example: "103427"
-      required: false
-      selector:
-        text:
+  description: Manually poll the MyBusStop API to update bus location and status for all routes.
