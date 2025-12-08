@@ -192,4 +192,5 @@ class MyBusStopApi:
             "longitude": _to_float(d[4]),
             "last_seen": d[5],
         }
+        _LOGGER.debug("Route %s: async_get_current returned: %s", self._route_id, result)
         return result

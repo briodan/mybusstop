@@ -162,10 +162,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         handle_update_bus_location,
     )
     
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    
-    # Perform initial data fetch
+    # Perform initial data fetch before setting up entities
     await handle_update_bus_location(None)
+    
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
     return True
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, Optional
 from datetime import datetime, timedelta
 
@@ -12,16 +13,23 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN
 
 
+_LOGGER = logging.getLogger(__name__)
+
+
 def _find_most_recent_route_data(all_data: Dict[int, Dict[str, Any]]) -> Optional[tuple[int, Dict[str, Any]]]:
     """Find the route with the most recent last_seen timestamp."""
     if not all_data:
+        _LOGGER.debug("_find_most_recent_route_data: all_data is empty")
         return None
+    
+    _LOGGER.debug("_find_most_recent_route_data: checking %d routes: %s", len(all_data), list(all_data.keys()))
     
     most_recent = None
     most_recent_route_id = None
     
     for route_id, data in all_data.items():
         last_seen = data.get("last_seen")
+        _LOGGER.debug("Route %s: last_seen=%s, data keys=%s", route_id, last_seen, list(data.keys()))
         if not last_seen:
             continue
         
@@ -30,8 +38,10 @@ def _find_most_recent_route_data(all_data: Dict[int, Dict[str, Any]]) -> Optiona
             most_recent_route_id = route_id
     
     if most_recent_route_id is not None:
+        _LOGGER.debug("Selected route %s with last_seen=%s", most_recent_route_id, most_recent)
         return most_recent_route_id, all_data[most_recent_route_id]
     
+    _LOGGER.warning("No route with valid last_seen found. Routes data: %s", all_data)
     return None
 
 
@@ -79,7 +89,10 @@ class MyBusStopBusSensor(SensorEntity):
     def available(self) -> bool:
         """Return if entity is available."""
         all_data = self.hass.data[DOMAIN][self._entry_id].get("data", {})
-        return _find_most_recent_route_data(all_data) is not None
+        result = _find_most_recent_route_data(all_data) is not None
+        if not result:
+            _LOGGER.debug("%s: Entity unavailable, data: %s", self._attr_unique_id, all_data)
+        return result
 
     @property
     def native_value(self) -> Optional[str]:
