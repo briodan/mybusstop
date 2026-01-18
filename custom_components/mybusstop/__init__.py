@@ -68,8 +68,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     for rid, api in apis.items():
         try:
             data = await api.async_get_current()
-            hass.data[DOMAIN][entry.entry_id]["data"][rid] = data
-            _LOGGER.debug("Initial data fetched for route %s", rid)
+            if data is not None:
+                hass.data[DOMAIN][entry.entry_id]["data"][rid] = data
+                _LOGGER.debug("Initial data fetched for route %s", rid)
+            else:
+                _LOGGER.info("Route %s: No data available (route may not be running today)", rid)
         except Exception as err:
             _LOGGER.warning("Failed to fetch initial data for route %s: %s", rid, err)
 
@@ -148,13 +151,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for route_key, api in apis_dict.items():
             try:
                 data = await api.async_get_current()
-                hass.data[DOMAIN][entry.entry_id]["data"][route_key] = data
+                if data is not None:
+                    hass.data[DOMAIN][entry.entry_id]["data"][route_key] = data
+                    _LOGGER.debug("Updated route %s with new data", route_key)
+                else:
+                    _LOGGER.debug("Route %s: No data available (route may not be running)", route_key)
             except Exception as err:
                 _LOGGER.error("Failed to update route %s: %s", route_key, err)
         
         # Trigger entity updates
         hass.bus.async_fire(f"{DOMAIN}_update", {})
-        _LOGGER.info("Updated bus location for all routes")
+        _LOGGER.debug("Bus location update completed")
     
     hass.services.async_register(
         DOMAIN,
@@ -162,8 +169,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         handle_update_bus_location,
     )
     
-    # Perform initial data fetch before setting up entities
-    await handle_update_bus_location(None)
+    # Perform initial data fetch (non-blocking - entities will show as unavailable until data arrives)
+    try:
+        await handle_update_bus_location(None)
+    except Exception as err:
+        _LOGGER.warning("Initial data fetch failed (routes may not be running): %s", err)
     
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     

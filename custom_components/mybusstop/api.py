@@ -131,8 +131,8 @@ class MyBusStopApi:
 
         return routes
 
-    async def async_get_current(self) -> Dict[str, Any]:
-        """Call getCurrentNEW and return parsed data."""
+    async def async_get_current(self) -> Optional[Dict[str, Any]]:
+        """Call getCurrentNEW and return parsed data, or None if route is not active."""
         if not self._logged_in:
             await self.async_login()
 
@@ -163,8 +163,8 @@ class MyBusStopApi:
                 raise MyBusStopApiError(f"Failed to call getCurrentNEW: {err2}") from err2
 
         if "d" not in data or not isinstance(data["d"], list) or len(data["d"]) < 6:
-            _LOGGER.debug("Unexpected getCurrentNEW response: %s", data)
-            raise MyBusStopApiError("Unexpected getCurrentNEW response structure")
+            _LOGGER.debug("Unexpected getCurrentNEW response (route may not be active): %s", data)
+            return None  # Route not active/no data available
 
         d = data["d"]
         def _to_float(val: Any) -> Optional[float]:
