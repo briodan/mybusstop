@@ -115,20 +115,36 @@ class MyBusStopApi:
                 resp = await self._session.get(index_url)
                 resp.raise_for_status()
                 html = await resp.text()
+                _LOGGER.debug("Fetched Index.aspx page (length: %d bytes)", len(html))
             except ClientError as err:
-                _LOGGER.debug("Failed to fetch routes page: %s", err)
+                _LOGGER.error("Failed to fetch routes page: %s", err)
                 return []
+        else:
+            _LOGGER.debug("Using saved login page HTML (length: %d bytes)", len(html))
+
+        # Log a sample of the HTML to help debug
+        _LOGGER.debug("HTML sample (first 1000 chars): %s", html[:1000])
 
         # Parse <option value="12345">Route Name</option>
+        # Also try to find select/dropdown elements for debugging
+        select_matches = re.findall(r'<select[^>]*>(.*?)</select>', html, re.IGNORECASE | re.DOTALL)
+        _LOGGER.debug("Found %d <select> elements in HTML", len(select_matches))
+        
         routes = []
         for m in re.finditer(r'<option[^>]*value="(\d+)"[^>]*>([^<]+)</option>', html, re.IGNORECASE):
             rid = m.group(1)
             name = m.group(2).strip()
+            # Skip empty or "Select" placeholder options
+            if name.lower() in ["", "select", "-- select --", "please select"]:
+                continue
             try:
                 routes.append({"id": int(rid), "name": name})
+                _LOGGER.debug("Found route: id=%s, name=%s", rid, name)
             except ValueError:
+                _LOGGER.warning("Could not parse route id '%s' as integer", rid)
                 continue
 
+        _LOGGER.info("Discovered %d route(s) from MyBusStop", len(routes))
         return routes
 
     async def async_get_current(self) -> Optional[Dict[str, Any]]:

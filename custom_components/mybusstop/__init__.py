@@ -39,9 +39,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Discover routes from the logged-in page
     routes = await api_template.async_get_routes()
+    
+    # If no routes discovered (bus not running), try to use previously stored routes
     if not routes:
-        _LOGGER.error("No routes found for this account")
-        return False
+        _LOGGER.warning("No routes currently visible on MyBusStop (routes may not be running)")
+        
+        # Try to load previously discovered routes from config entry data
+        stored_routes = entry.data.get("discovered_routes", [])
+        if stored_routes:
+            _LOGGER.info("Using %d previously discovered route(s) from config", len(stored_routes))
+            routes = stored_routes
+        else:
+            _LOGGER.error(
+                "No routes found and no previously stored routes available. "
+                "Please set up the integration when at least one bus route is active."
+            )
+            return False
+    else:
+        # Save discovered routes to config entry for future use
+        _LOGGER.info("Discovered %d route(s), saving to config", len(routes))
+        new_data = dict(entry.data)
+        new_data["discovered_routes"] = routes
+        hass.config_entries.async_update_entry(entry, data=new_data)
 
     apis: dict[int, MyBusStopApi] = {}
 
@@ -56,6 +75,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             continue
 
         apis[rid] = api_i
+
+    # Warn if no API instances were created (all routes offline)
+    if not apis:
+        _LOGGER.warning(
+            "No route APIs could be initialized (all routes may be offline). "
+            "Entities will be unavailable until routes become active."
+        )
 
     # Initialize data storage
     hass.data[DOMAIN][entry.entry_id] = {
