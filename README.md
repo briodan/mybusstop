@@ -8,7 +8,7 @@ A Home Assistant custom integration that connects to [MyBusStop](https://www.myb
 - **Single Bus View**: One unified bus sensor and tracker that intelligently shows the active route
 - **Route Status Sensor**: Overview sensor showing all routes and their current status
 - **On-Demand Updates**: Manual polling via service call - you control when to fetch bus location
-- **Daily Route Discovery**: Configurable scheduled check for new routes (e.g., Friday-only routes)
+- **Self-Maintaining Route List**: Route names are refreshed, new route IDs (new school year, Friday-only runs) are added and stale ones dropped automatically
 - **Multi-Route Support**: Polls all routes but displays the most recently active one
 
 ## Installation via HACS
@@ -123,7 +123,13 @@ After initial setup, you can configure when the integration checks for new route
 3. Set **Daily route discovery time** (HH:MM format, 24-hour)
    - Default: `02:00` (2:00 AM)
 
-The integration will check for new routes at this time every day and automatically add any newly discovered routes (e.g., Friday-only routes).
+The integration refreshes the route list at this time every day, and also when `mybusstop.update_bus_location` is called (at most every 30 minutes):
+
+- **New route IDs** (e.g. a new school year, or a Friday-only run) are added without a restart.
+- **Route names** are updated, since MyBusStop changes them regularly.
+- **Old route IDs** that have not been listed for 14 days are removed. Nothing is removed while MyBusStop lists no routes at all (e.g. holidays or summer break).
+
+Entities are not tied to a route ID, so `sensor.mybusstop_bus` and `device_tracker.mybusstop_bus` keep working when route IDs change and always show the route with the most recent `last_seen`.
 
 ## How It Works
 
@@ -134,7 +140,7 @@ The integration will check for new routes at this time every day and automatical
    - All routes are polled when the service is called
    - The sensor and tracker show data from the route with the most recent `last_seen` timestamp
    - This ensures you always see the currently active bus, even if it switches routes
-5. **Daily Route Check**: Runs once daily at your configured time to discover new routes
+5. **Route Refresh**: Runs daily at your configured time and on update calls to keep route IDs and names current
 
 ## Troubleshooting
 

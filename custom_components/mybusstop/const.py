@@ -13,6 +13,11 @@ POLLING_WINDOW_MINUTES = 15  # Start polling 15 minutes before and after schedul
 ACTIVE_SCAN_INTERVAL = 60  # seconds, when actively polling around bus times
 INACTIVE_SCAN_INTERVAL = 3600  # 1 hour, when not near bus times
 
+# Route IDs change every school year and names change daily, so the route list
+# is refreshed regularly. Routes not listed for this many days are dropped.
+ROUTE_PRUNE_DAYS = 14
+ROUTE_REFRESH_MINUTES = 30  # refresh route list on update calls at most this often
+
 BASE_URL = "https://www.mybusstop.ca"
 LOGIN_URL = f"{BASE_URL}/login.aspx?ReturnUrl=%2fLogin%2fIndex.aspx"
 INDEX_URL = f"{BASE_URL}/Login/Index.aspx"

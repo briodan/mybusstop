@@ -1,3 +1,4 @@
+import html as html_lib
 import logging
 import re
 from datetime import datetime
@@ -133,6 +134,18 @@ class MyBusStopApi:
         # Save last logged-in page HTML for callers who want to parse routes
         self._last_login_page = text
 
+    async def _fetch_index_page(self) -> Optional[str]:
+        """Fetch Index.aspx, which contains the route dropdown."""
+        try:
+            resp = await self._session.get(INDEX_URL, headers={"User-Agent": USER_AGENT})
+            resp.raise_for_status()
+            html = await resp.text()
+            _LOGGER.debug("Fetched Index.aspx page (length: %d bytes)", len(html))
+            return html
+        except ClientError as err:
+            _LOGGER.error("Failed to fetch routes page: %s", err)
+            return None
+
     async def async_get_routes(self) -> list[dict]:
         """Return list of available routes from the logged-in page.
 
@@ -142,17 +155,19 @@ class MyBusStopApi:
         if not getattr(self, "_logged_in", False):
             await self.async_login()
 
-        # Try to use saved login page HTML if available; otherwise fetch the page
+        # Use the page returned by a login once; after that always fetch a fresh
+        # copy so renamed, added or removed routes are picked up.
         html = getattr(self, "_last_login_page", None)
+        self._last_login_page = None
         if html is None:
-            # Fetch the index page which contains the route dropdown
-            try:
-                resp = await self._session.get(INDEX_URL, headers={"User-Agent": USER_AGENT})
-                resp.raise_for_status()
-                html = await resp.text()
-                _LOGGER.debug("Fetched Index.aspx page (length: %d bytes)", len(html))
-            except ClientError as err:
-                _LOGGER.error("Failed to fetch routes page: %s", err)
+            html = await self._fetch_index_page()
+            if html is not None and 'id="txtPassword"' in html:
+                _LOGGER.debug("Session expired while fetching routes, logging in again")
+                self._logged_in = False
+                await self.async_login()
+                html = self._last_login_page
+                self._last_login_page = None
+            if html is None:
                 return []
         else:
             _LOGGER.debug("Using saved login page HTML (length: %d bytes)", len(html))
@@ -168,7 +183,7 @@ class MyBusStopApi:
         routes = []
         for m in re.finditer(r'<option[^>]*value="(\d+)"[^>]*>([^<]+)</option>', html, re.IGNORECASE):
             rid = m.group(1)
-            name = m.group(2).strip()
+            name = html_lib.unescape(m.group(2)).strip()
             # Skip empty or "Select" placeholder options
             if name.lower() in ["", "select", "-- select --", "please select"]:
                 continue
