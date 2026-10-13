@@ -15,4 +15,11 @@ INACTIVE_SCAN_INTERVAL = 3600  # 1 hour, when not near bus times
 
 BASE_URL = "https://www.mybusstop.ca"
 LOGIN_URL = f"{BASE_URL}/login.aspx?ReturnUrl=%2fLogin%2fIndex.aspx"
+INDEX_URL = f"{BASE_URL}/Login/Index.aspx"
 CURRENT_URL = f"{BASE_URL}/Login/Index.aspx/getCurrentNEW"
+
+# The site sits behind Cloudflare, which may challenge non-browser user agents.
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+)

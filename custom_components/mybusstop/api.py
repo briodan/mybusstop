@@ -2,9 +2,9 @@ import logging
 import re
 from typing import Any, Dict, Optional
 
-from aiohttp import ClientSession, ClientError
+from aiohttp import ClientSession, ClientError, ClientResponseError
 
-from .const import LOGIN_URL, CURRENT_URL
+from .const import BASE_URL, LOGIN_URL, INDEX_URL, CURRENT_URL, USER_AGENT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +36,13 @@ class MyBusStopApi:
     async def _fetch_login_page(self) -> str:
         """Fetch the login page to get VIEWSTATE, etc."""
         try:
-            resp = await self._session.get(LOGIN_URL)
+            resp = await self._session.get(
+                LOGIN_URL,
+                headers={
+                    "User-Agent": USER_AGENT,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                },
+            )
             resp.raise_for_status()
             text = await resp.text()
             return text
@@ -77,7 +83,10 @@ class MyBusStopApi:
 
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "HomeAssistant-MyBusStop/0.1",
+            "User-Agent": USER_AGENT,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Referer": LOGIN_URL,
+            "Origin": BASE_URL,
         }
 
         try:
@@ -87,10 +96,25 @@ class MyBusStopApi:
         except ClientError as err:
             raise MyBusStopAuthError(f"Login POST failed: {err}") from err
 
-        # Very naive success check: we expect to be redirected to Index.aspx
-        if "hiddenUser" not in text and "MyBusStop" not in text:
-            _LOGGER.debug("Login response did not look like logged-in page")
-            raise MyBusStopAuthError("MyBusStop login appears to have failed")
+        # A successful login redirects to Index.aspx. A failed one returns the
+        # login form again (which still contains "MyBusStop" in its footer).
+        final_url = str(resp.url)
+        still_on_login = 'id="txtPassword"' in text
+        on_index = "hiddenUser" in text or final_url.lower().startswith(INDEX_URL.lower())
+        if still_on_login or not on_index:
+            if "Just a moment" in text or "cf-chl" in text or "challenge-platform" in text:
+                reason = "blocked by Cloudflare challenge"
+            elif still_on_login:
+                reason = "login form returned again (bad credentials or login rejected)"
+            else:
+                reason = "unexpected response page"
+            _LOGGER.debug(
+                "Login failed (%s); final URL %s; response sample: %s",
+                reason,
+                final_url,
+                text[:1000],
+            )
+            raise MyBusStopAuthError(f"MyBusStop login failed: {reason}")
 
         _LOGGER.info("MyBusStop login successful")
         self._logged_in = True
@@ -110,9 +134,8 @@ class MyBusStopApi:
         html = getattr(self, "_last_login_page", None)
         if html is None:
             # Fetch the index page which contains the route dropdown
-            index_url = LOGIN_URL.replace("login.aspx?ReturnUrl=%2fLogin%2fIndex.aspx", "Login/Index.aspx")
             try:
-                resp = await self._session.get(index_url)
+                resp = await self._session.get(INDEX_URL, headers={"User-Agent": USER_AGENT})
                 resp.raise_for_status()
                 html = await resp.text()
                 _LOGGER.debug("Fetched Index.aspx page (length: %d bytes)", len(html))
@@ -157,9 +180,9 @@ class MyBusStopApi:
         headers = {
             "Content-Type": "application/json; charset=UTF-8",
             "X-Requested-With": "XMLHttpRequest",
-            "Referer": LOGIN_URL.replace("login.aspx?ReturnUrl=%2fLogin%2fIndex.aspx", "Login/Index.aspx"),
-            "Origin": "https://www.mybusstop.ca",
-            "User-Agent": "HomeAssistant-MyBusStop/0.1",
+            "Referer": INDEX_URL,
+            "Origin": BASE_URL,
+            "User-Agent": USER_AGENT,
         }
 
         try:
@@ -175,6 +198,13 @@ class MyBusStopApi:
                 resp = await self._session.post(CURRENT_URL, json=payload, headers=headers)
                 resp.raise_for_status()
                 data = await resp.json()
+            except ClientResponseError as err2:
+                if err2.status == 401:
+                    raise MyBusStopApiError(
+                        "getCurrentNEW returned 401 Unauthorized right after a fresh login; "
+                        "the session is being rejected by the server"
+                    ) from err2
+                raise MyBusStopApiError(f"Failed to call getCurrentNEW: {err2}") from err2
             except ClientError as err2:
                 raise MyBusStopApiError(f"Failed to call getCurrentNEW: {err2}") from err2
 

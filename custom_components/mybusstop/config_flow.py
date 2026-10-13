@@ -42,7 +42,7 @@ class MyBusStopConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
         """Get the options flow for this handler."""
-        return MyBusStopOptionsFlow(config_entry)
+        return MyBusStopOptionsFlow()
 
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
         """Handle the initial step - username and password."""
