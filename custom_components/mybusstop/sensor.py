@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .api import parse_last_seen
 from .const import DOMAIN
 
 
@@ -30,11 +31,12 @@ def _find_most_recent_route_data(all_data: Dict[int, Dict[str, Any]]) -> Optiona
     for route_id, data in all_data.items():
         last_seen = data.get("last_seen")
         _LOGGER.debug("Route %s: last_seen=%s, data keys=%s", route_id, last_seen, list(data.keys()))
-        if not last_seen:
+        last_seen_dt = parse_last_seen(last_seen)
+        if last_seen_dt is None:
             continue
         
-        if most_recent is None or last_seen > most_recent:
-            most_recent = last_seen
+        if most_recent is None or last_seen_dt > most_recent:
+            most_recent = last_seen_dt
             most_recent_route_id = route_id
     
     if most_recent_route_id is not None:

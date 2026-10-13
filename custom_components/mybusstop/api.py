@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 from aiohttp import ClientSession, ClientError, ClientResponseError
@@ -7,6 +8,17 @@ from aiohttp import ClientSession, ClientError, ClientResponseError
 from .const import BASE_URL, LOGIN_URL, INDEX_URL, CURRENT_URL, USER_AGENT
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def parse_last_seen(value: Any) -> Optional[datetime]:
+    """Parse a last_seen string like '10/13/2026 8:39:54 AM' into a datetime."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(str(value).strip(), "%m/%d/%Y %I:%M:%S %p")
+    except ValueError:
+        _LOGGER.debug("Could not parse last_seen value: %s", value)
+        return None
 
 
 class MyBusStopAuthError(Exception):
